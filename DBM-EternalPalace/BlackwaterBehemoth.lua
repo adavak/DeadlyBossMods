@@ -5,7 +5,7 @@ mod:SetRevision("@file-date-integer@")
 mod:SetCreatureID(150653)
 mod:SetEncounterID(2289)
 mod:SetZone()
---mod:SetHotfixNoticeRev(16950)
+mod:SetHotfixNoticeRev(20190716000000)--2019, 7, 16
 --mod:SetMinSyncRevision(16950)
 --mod.respawnTime = 29
 
@@ -16,44 +16,41 @@ mod:RegisterEventsInCombat(
 	"SPELL_CAST_SUCCESS 292205 302135 292159 301494",
 	"SPELL_AURA_APPLIED 292307 292133 292138 289699 292167 301494 298595",
 	"SPELL_AURA_APPLIED_DOSE 289699",
-	"SPELL_AURA_REMOVED 292133 292138 298595",
+	"SPELL_AURA_REMOVED 292133 292138 298595 301494",
 	"SPELL_INTERRUPT",
---	"SPELL_PERIODIC_DAMAGE",
---	"SPELL_PERIODIC_MISSED",
 	"UNIT_SPELLCAST_SUCCEEDED boss1"
 )
 
---TODO: Can boss cast Bioelectric Feelers during Cavitation, when tank is forced away from boss?
 --[[
 (ability.id = 292270 or ability.id = 292083) and type = "begincast"
  or (ability.id = 292205 or ability.id = 302135 or ability.id = 292159 or ability.id = 301494) and type = "cast"
  or type = "interrupt"
 --]]
 local warnBioluminescentCloud			= mod:NewSpellAnnounce(292205, 2)
-local warnToxicSpine					= mod:NewTargetNoFilterAnnounce(292167, 2, nil, "Healer")
+local warnToxicSpine					= mod:NewTargetNoFilterAnnounce(292167, 2, nil, false, 2)--Too spammy for my liking, and mostly just ignored by healers anyways, so now off by default
 local warnPiercingBarb					= mod:NewTargetNoFilterAnnounce(301494, 2)
 
 local specWarnGazefromBelow				= mod:NewSpecialWarningYou(292307, nil, nil, nil, 3, 2)
-local specWarnFeedingFrenzy				= mod:NewSpecialWarningCount(298424, nil, DBM_CORE_AUTO_SPEC_WARN_OPTIONS.stack:format(18, 298424), nil, 1, 2)
+local specWarnFeedingFrenzy				= mod:NewSpecialWarningCount(298424, nil, DBM_CORE_AUTO_SPEC_WARN_OPTIONS.stack:format(12, 298424), nil, 1, 2)
 local specWarnFeedingFrenzyOther		= mod:NewSpecialWarningTaunt(298424, nil, nil, nil, 1, 2)
 local specWarnShockPulse				= mod:NewSpecialWarningCount(292270, nil, nil, nil, 2, 2)
 local specWarnCavitation				= mod:NewSpecialWarningSpell(292083, nil, nil, nil, 2, 2)
-local specWarnPiercingBarb				= mod:NewSpecialWarningYou(301494, nil, nil, nil, 1, 2)
+local specWarnPiercingBarb				= mod:NewSpecialWarningYou(301494, nil, nil, nil, 1, 2, 4)
 local yellPiercingBarb					= mod:NewYell(301494)
+local yellPiercingBarbFades				= mod:NewShortFadesYell(301494)
 --local specWarnGTFO						= mod:NewSpecialWarningGTFO(270290, nil, nil, nil, 1, 8)
 
 local timerBioluminescentCloud			= mod:NewCastCountTimer(30.4, 292205, nil, nil, nil, 5)
 local timerToxicSpineCD					= mod:NewNextTimer(20, 292167, nil, "Healer", nil, 5, nil, DBM_CORE_HEALER_ICON)
 local timerShockPulseCD					= mod:NewNextCountTimer(30, 292270, nil, nil, nil, 2, nil, nil, nil, 1, 4)
-local timerPiercingBarbCD				= mod:NewNextTimer(29.9, 301494, nil, nil, nil, 3, nil, nil, nil, 3, 4)--Mythic
+local timerPiercingBarbCD				= mod:NewNextTimer(29.9, 301494, nil, nil, nil, 3, nil, DBM_CORE_MYTHIC_ICON, nil, 3, 4)--Mythic
 local timerNextPhase					= mod:NewPhaseTimer(100)
 local timerCavitation					= mod:NewCastTimer(32, 292083, nil, nil, nil, 4, nil, DBM_CORE_INTERRUPT_ICON, nil, 1, 4)
 
---local berserkTimer					= mod:NewBerserkTimer(600)
+local berserkTimer						= mod:NewBerserkTimer(720)
 
---mod:AddRangeFrameOption(6, 264382)
+mod:AddRangeFrameOption(5, 292247)
 mod:AddInfoFrameOption(292133, true)
---mod:AddSetIconOption("SetIconOnEyeBeam", 264382, true)
 
 mod.vb.phase = 1
 mod.vb.cloudCount = 0
@@ -103,18 +100,19 @@ function mod:OnCombatStart(delay)
 	self.vb.cloudCount = 0
 	self.vb.shockPulse = 0
 	playerBio, playerBioTwo, playerBioThree = false, false, false
+	timerToxicSpineCD:Start(11-delay)
+	timerShockPulseCD:Start(21.9-delay, 1)
 	if self:IsMythic() then
-		timerPiercingBarbCD:Start(11-delay)
-		timerToxicSpineCD:Start(11-delay)
-		timerShockPulseCD:Start(23-delay, 1)
-	else
-		timerToxicSpineCD:Start(5.4-delay)
-		timerShockPulseCD:Start(19.4-delay, 1)--22?
+		timerPiercingBarbCD:Start(13-delay)
 	end
-	timerNextPhase:Start(100)
+	timerNextPhase:Start(100-delay)--Power Drain (when it leaves) not 10 seconds after when it casts cav
+	berserkTimer:Start(self:IsHard() and 545 or 720-delay)
 	if self.Options.InfoFrame then
 		DBM.InfoFrame:SetHeader(OVERVIEW)
 		DBM.InfoFrame:Show(8, "function", updateInfoFrame, false, false)
+	end
+	if self.Options.RangeFrame then
+		DBM.RangeCheck:Show(5)
 	end
 end
 
@@ -122,9 +120,9 @@ function mod:OnCombatEnd()
 	if self.Options.InfoFrame then
 		DBM.InfoFrame:Hide()
 	end
---	if self.Options.RangeFrame then
---		DBM.RangeCheck:Hide()
---	end
+	if self.Options.RangeFrame then
+		DBM.RangeCheck:Hide()
+	end
 end
 
 function mod:OnTimerRecovery()
@@ -189,7 +187,7 @@ function mod:SPELL_AURA_APPLIED(args)
 		end
 	elseif spellId == 289699 then
 		local amount = args.amount or 1
-		if amount >= 18 and self:AntiSpam(5, 2) then
+		if amount >= 12 and self:AntiSpam(4, 2) then
 			if self:IsTanking("player", "boss1", nil, true) then
 				specWarnFeedingFrenzy:Show(amount)
 				specWarnFeedingFrenzy:Play("changemt")
@@ -199,12 +197,13 @@ function mod:SPELL_AURA_APPLIED(args)
 			end
 		end
 	elseif spellId == 292167 then
-		warnToxicSpine:CombinedShow(0.3, args.destName)
+		warnToxicSpine:CombinedShow(1, args.destName)
 	elseif spellId == 301494 then
 		if args:IsPlayer() then
 			specWarnPiercingBarb:Show()
 			specWarnPiercingBarb:Play("targetyou")
 			yellPiercingBarb:Yell()
+			yellPiercingBarbFades:Countdown(spellId)
 		else
 			warnPiercingBarb:Show(args.destName)
 		end
@@ -226,6 +225,8 @@ function mod:SPELL_AURA_REMOVED(args)
 		if args:IsPlayer() then
 			playerBioThree = false
 		end
+	elseif spellId == 301494 and args:IsPlayer() then
+		yellPiercingBarbFades:Cancel()
 	end
 end
 
@@ -234,37 +235,18 @@ function mod:SPELL_INTERRUPT(args)
 		self.vb.phase = self.vb.phase + 1
 		timerCavitation:Stop()
 		if self:IsMythic() then
-			timerPiercingBarbCD:Start(11)
 			timerToxicSpineCD:Start(11)
+			timerPiercingBarbCD:Start(13)
 			timerShockPulseCD:Start(23, self.vb.shockPulse+1)
 		else
 			timerToxicSpineCD:Start(5.4)
 			timerShockPulseCD:Start(19.4, self.vb.shockPulse+1)
 		end
 		if self.vb.phase == 2 then
-			timerNextPhase:Start(100)
+			timerNextPhase:Start(100)--Power Drain (when it leaves) not 10 seconds after when it casts cav
 		end
 	end
 end
-
---[[
-function mod:SPELL_PERIODIC_DAMAGE(_, _, _, _, destGUID, _, _, _, spellId, spellName)
-	if spellId == 270290 and destGUID == UnitGUID("player") and self:AntiSpam(2, 2) then
-		specWarnGTFO:Show(spellName)
-		specWarnGTFO:Play("watchfeet")
-	end
-end
-mod.SPELL_PERIODIC_MISSED = mod.SPELL_PERIODIC_DAMAGE
-
-function mod:UNIT_DIED(args)
-	local cid = self:GetCIDFromGUID(args.destGUID)
-	if cid == 150773 then--Shimmerskin Pufferfish
-
-	elseif cid == 153779 then--Darkwater Jellyfish
-
-	end
-end
---]]
 
 function mod:UNIT_SPELLCAST_SUCCEEDED(uId, _, spellId)
 	if spellId == 292252 and self:AntiSpam(5, 3) then--Power Drain [DNT]

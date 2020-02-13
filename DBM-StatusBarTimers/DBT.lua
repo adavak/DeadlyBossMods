@@ -483,6 +483,10 @@ options = {
 		type = "boolean",
 		default = true,
 	},
+	StripCDText = {
+		type = "boolean",
+		default = true,
+	},
 }
 
 
@@ -979,6 +983,14 @@ function barPrototype:SetIcon(icon)
 end
 
 function barPrototype:SetColor(color)
+	-- Fix to allow colors not require the table keys
+	if color[1] and not color.r then
+		color = {
+			r = color[1],
+			g = color[2],
+			b = color[3]
+		}
+	end
 	self.color = color
 	local frame_name = self.frame:GetName()
 	_G[frame_name.."Bar"]:SetStatusBarColor(color.r, color.g, color.b)
@@ -1476,7 +1488,7 @@ function barPrototype:Announce()
 	end
 	local text = tostring(_G[self.frame:GetName().."BarName"]:GetText())
 	text = text:gsub("|T.-|t", "")
-	msg = msg or ("%s  %d:%02d"):format(text, math.floor(self.timer / 60), self.timer % 60)
+	msg = msg or ("%s %d:%02d"):format(text, math.floor(self.timer / 60), self.timer % 60)
 	local chatWindow = ChatEdit_GetActiveWindow()
 	if chatWindow then
 		chatWindow:Insert(msg)

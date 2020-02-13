@@ -51,7 +51,7 @@ function mod:SPELL_CAST_START(args)
 	local spellId = args.spellId
 	if spellId == 249923 or spellId == 259187 then
 		timerSoulrendCD:Start()
-		if not self:IsNormal() then
+		if not self:IsNormal() and not self:IsTank() then
 			specWarnSoulRend:Show()
 			specWarnSoulRend:Play("runout")
 		end
@@ -94,17 +94,3 @@ function mod:SPELL_PERIODIC_DAMAGE(_, _, _, _, destGUID, _, _, _, spellId, spell
 	end
 end
 mod.SPELL_PERIODIC_MISSED = mod.SPELL_PERIODIC_DAMAGE
-
---[[
-function mod:UNIT_DIED(args)
-	local cid = self:GetCIDFromGUID(args.destGUID)
-	if cid == 124396 then
-
-	end
-end
-
-function mod:UNIT_SPELLCAST_SUCCEEDED(uId, _, spellId)
-	if spellId == 257939 then
-	end
-end
---]]

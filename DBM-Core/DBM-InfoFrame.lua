@@ -302,7 +302,6 @@ local function updateLinesCustomSort(sortFunc)
 	end
 end
 
---8.2 TODO FIXME if broken.
 local function updateIcons()
 	twipe(icons)
 	for uId in DBM:GetGroupMembers() do
@@ -340,6 +339,8 @@ local function updatePlayerPower()
 	local threshold = value[1]
 	local powerType = value[2]
 	local spellFilter = value[3]
+	--Value 4 is the noUpdate handler
+	--Value 5 is sorting method, handled in show handler
 	for uId in DBM:GetGroupMembers() do
 		if spellFilter and DBM:UnitDebuff(uId, spellFilter) then
 			--Do nothing
@@ -366,16 +367,18 @@ local function updateEnemyPower()
 		if specificUnit then
 			local currentPower, maxPower = UnitPower(specificUnit, powerType), UnitPowerMax(specificUnit, powerType)
 			if maxPower and maxPower ~= 0 then--Prevent division by 0 in addition to filtering non existing units that may still return false on UnitExists()
-				if currentPower / maxPower * 100 >= threshold then
-					lines[UnitName(specificUnit)] = currentPower
+				local percent = currentPower / maxPower * 100
+				if percent >= threshold then
+					lines[UnitName(specificUnit)] = mfloor(percent).."%"
 				end
 			end
 		else
 			if specificUnit then
 				local currentPower, maxPower = UnitPower(specificUnit), UnitPowerMax(specificUnit)
 				if maxPower and maxPower ~= 0 then--Prevent division by 0 in addition to filtering non existing units that may still return false on UnitExists()
-					if currentPower / maxPower * 100 >= threshold then
-						lines[UnitName(specificUnit)] = currentPower
+					local percent = currentPower / maxPower * 100
+					if percent >= threshold then
+						lines[UnitName(specificUnit)] = mfloor(percent).."%"
 					end
 				end
 			else
@@ -383,8 +386,9 @@ local function updateEnemyPower()
 					local uId = "boss"..i
 					local currentPower, maxPower = UnitPower(uId), UnitPowerMax(uId)
 					if maxPower and maxPower ~= 0 then--Prevent division by 0 in addition to filtering non existing units that may still return false on UnitExists()
-						if currentPower / maxPower * 100 >= threshold then
-							lines[UnitName(uId)] = currentPower
+						local percent = currentPower / maxPower * 100
+						if percent >= threshold then
+							lines[UnitName(uId)] = mfloor(percent).."%"
 						end
 					end
 				end
@@ -430,10 +434,11 @@ local function updateEnemyAbsorb()
 				local text
 				if totalAbsorb then
 					text = absorbAmount / totalAbsorb * 100
+					lines[UnitName(specificUnit)] = mfloor(text).."%"
 				else
 					text = absorbAmount
+					lines[UnitName(specificUnit)] = mfloor(text)
 				end
-				lines[UnitName(specificUnit)] = mfloor(text).."%"
 			end
 		end
 	else
@@ -874,7 +879,7 @@ end
 ---------------
 --  Methods  --
 ---------------
---Arg 1: spellName, health/powervalue, customfunction, table type. Arg 2: TankIgnore, Powertype, SortFunction, totalAbsorb, sortmethod (table/stacks). Arg 3: SpellFilter, UseIcon. Arg 4: disable onUpdate
+--Arg 1: spellName, health/powervalue, customfunction, table type. Arg 2: TankIgnore, Powertype, SortFunction, totalAbsorb, sortmethod (table/stacks). Arg 3: SpellFilter, UseIcon. Arg 4: disable onUpdate. Arg 5: sortmethod (playerpower)
 function infoFrame:Show(maxLines, event, ...)
 	currentMapId = select(4, UnitPosition("player"))
 	if DBM.Options.DontShowInfoFrame and (event or 0) ~= "test" then return end
@@ -884,6 +889,7 @@ function infoFrame:Show(maxLines, event, ...)
 	else
 		maxlines = maxLines or 5
 	end
+	table.wipe(value)
 	for i = 1, select("#", ...) do
 		value[i] = select(i, ...)
 	end
@@ -904,15 +910,15 @@ function infoFrame:Show(maxLines, event, ...)
 	end
 	currentEvent = event
 	if event == "playerbuff" or event == "playerbaddebuff" or event == "playergooddebuff" then
-		sortMethod = 3
+		sortMethod = 3--Sort by group ID
 	elseif event == "health" or event == "playerdebuffremaining" then
-		sortMethod = 2	-- Sort lowest first
-	elseif (event == "playerdebuffstacks" or event == "table") and value[2] then
-		if type(value[2]) == "number" then
-			sortMethod = value[2]
-		end
+		sortMethod = 2--Sort lowest first
+	elseif (event == "playerdebuffstacks" or event == "table") and value[2] and type(value[2]) == "number" then
+		sortMethod = value[2]
+	elseif event == "playerpower" and value[5] and type(value[5]) == "number" then
+		sortMethod = value[5]
 	else
-		sortMethod = 1
+		sortMethod = 1--Sort highest first
 	end
 	if events[currentEvent] then
 		events[currentEvent](value[1])
@@ -928,7 +934,7 @@ function infoFrame:Show(maxLines, event, ...)
 	onUpdate(frame, value[1])
 	if not frame.ticker and not value[4] and event ~= "table" then
 		frame.ticker = C_Timer.NewTicker(0.5, function() onUpdate(frame) end)
-	elseif frame.ticker and event == "table" then--Redundancy, in event calling a new table based infoframe show without a hide event to unschedule ticker based infoframe
+	elseif frame.ticker and value[4] then--Redundancy, in event calling a non onupdate infoframe show without a hide event to unschedule ticker based infoframe
 		frame.ticker:Cancel()
 		frame.ticker = nil
 	end

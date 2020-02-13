@@ -50,7 +50,7 @@ end
 
 function mod:SPELL_CAST_START(args)
 	local spellId = args.spellId
-	if spellId == 195254 then
+	if spellId == 250258 then
 		specWarnLeap:Show()
 		specWarnLeap:Play("watchstep")
 		timerLeapCD:Start()
@@ -98,10 +98,3 @@ function mod:UNIT_DIED(args)
 		end
 	end
 end
-
---[[
-function mod:UNIT_SPELLCAST_SUCCEEDED(uId, _, spellId)
-	if spellId == 257939 then
-	end
-end
---]]
